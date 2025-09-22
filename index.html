@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyFlow - Smart Study Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            /* Light Mode Palette */
+            --bg-light: #f5f3ff; --text-light: #1e1b4b;
+            --glass-bg-light: rgba(255, 255, 255, 0.5); --glass-border-light: rgba(255, 255, 255, 0.7);
+            --primary-light: #7c3aed; --accent-light: #a78bfa;
+
+            /* Dark Mode Palette */
+            --bg-dark: #111827; --text-dark: #e5e7eb;
+            --glass-bg-dark: rgba(31, 41, 55, 0.5); --glass-border-dark: rgba(55, 65, 81, 0.7);
+            --primary-dark: #a78bfa; --accent-dark: #c4b5fd;
+        }
+
+        body { font-family: 'Poppins', sans-serif; transition: background-color 0.5s, color 0.5s; overflow-y: scroll; }
+        
+        @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .animated-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background-size: 300% 300%; animation: gradient-animation 20s ease infinite; }
+
+        .light-mode { --bg-color: var(--bg-light); --text-color: var(--text-light); --glass-bg: var(--glass-bg-light); --glass-border: var(--glass-border-light); --primary-color: var(--primary-light); --accent-color: var(--accent-light); }
+        .light-mode .animated-bg { background-image: linear-gradient(-45deg, #ede9fe, #dadafc, #c1c4fa, #a7b2f7); }
+
+        .dark-mode { --bg-color: var(--bg-dark); --text-color: var(--text-dark); --glass-bg: var(--glass-bg-dark); --glass-border: var(--glass-border-dark); --primary-color: var(--primary-dark); --accent-color: var(--accent-dark); }
+        .dark-mode .animated-bg { background-image: linear-gradient(-45deg, #111827, #1f2937, #374151, #4b5563); }
+
+        body { background-color: var(--bg-color); color: var(--text-color); }
+        .glass-card { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); transition: all 0.3s ease; }
+        .glass-card:hover { transform: translateY(-6px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); border-color: var(--accent-color); }
+        
+        .modal { z-index: 50; }
+        .dark-mode .modal input, .dark-mode .modal select, .dark-mode .filter-bar input, .dark-mode .filter-bar select { background-color: rgba(55, 65, 81, 0.8); border-color: var(--glass-border-dark); color: var(--text-dark); }
+        .light-mode .modal input, .light-mode .modal select, .light-mode .filter-bar input, .light-mode .filter-bar select { background-color: rgba(255, 255, 255, 0.6); border-color: var(--glass-border-light); color: var(--text-light); }
+        
+        .view { display: none; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    </style>
+</head>
+<body class="dark-mode">
+    <div class="animated-bg"></div>
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 relative z-10">
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-10 gap-6">
+            <div class="flex items-center space-x-4">
+                 <svg class="w-10 h-10 text-[var(--primary-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 a 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h1 class="text-3xl font-bold">StudyFlow</h1>
+            </div>
+            <!-- Navigation -->
+            <div class="glass-card p-2 rounded-full flex space-x-1 sm:space-x-2 text-sm sm:text-base">
+                <button class="nav-btn px-3 py-1.5 rounded-full" data-view="goals-view">Goals</button>
+                <button class="nav-btn px-3 py-1.5 rounded-full" data-view="all-tasks-view">All Tasks</button>
+                <button class="nav-btn px-3 py-1.5 rounded-full" data-view="timetable-view">Timetable</button>
+            </div>
+            <div class="flex items-center space-x-4">
+                 <p class="hidden sm:block font-semibold">Welcome, Jai!</p>
+                <button id="theme-toggle" class="p-2.5 rounded-full glass-card hover:bg-[var(--glass-bg)]">
+                    <svg id="theme-icon" class="w-6 h-6 text-[var(--accent-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"></svg>
+                </button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Goals View -->
+            <div id="goals-view" class="view">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                    <h2 class="text-2xl font-bold mb-4 sm:mb-0">My Goals</h2>
+                    <button id="add-goal-btn" class="px-5 py-2.5 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:bg-opacity-80 transition flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        <span>New Goal</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-card p-4 rounded-xl flex items-center space-x-4"><div class="p-3 rounded-full bg-blue-500/20 text-blue-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg></div><div><p class="text-sm opacity-70">Total Tasks</p><p id="total-tasks-stat" class="text-2xl font-bold">0</p></div></div>
+                    <div class="glass-card p-4 rounded-xl flex items-center space-x-4"><div class="p-3 rounded-full bg-yellow-500/20 text-yellow-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div><div><p class="text-sm opacity-70">Pending</p><p id="pending-tasks-stat" class="text-2xl font-bold">0</p></div></div>
+                    <div class="glass-card p-4 rounded-xl flex items-center space-x-4"><div class="p-3 rounded-full bg-green-500/20 text-green-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div><div><p class="text-sm opacity-70">Completed</p><p id="completed-tasks-stat" class="text-2xl font-bold">0</p></div></div>
+                </div>
+                <div id="goals-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </div>
+
+            <!-- Sub-tasks View -->
+            <div id="subtask-view" class="view">
+                 <div class="flex justify-between items-center mb-6"><button id="back-to-goals-btn" class="flex items-center space-x-2 opacity-80 hover:opacity-100 transition"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path></svg><span class="font-semibold">Back to Goals</span></button><button id="add-subtask-btn" class="px-5 py-2.5 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:bg-opacity-80 transition flex items-center space-x-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg><span>Add Task</span></button></div>
+                <div class="glass-card p-6 rounded-2xl shadow-lg"><h2 id="subtask-view-title" class="text-2xl font-bold mb-4"></h2><p id="subtask-view-counts" class="text-sm opacity-70 mb-6"></p><div id="subtask-list" class="space-y-4"></div></div>
+            </div>
+
+            <!-- All Tasks View -->
+            <div id="all-tasks-view" class="view">
+                <h2 class="text-2xl font-bold mb-6">All Tasks</h2>
+                <div class="glass-card p-4 rounded-xl mb-6 filter-bar flex flex-wrap gap-4 items-center">
+                    <input type="text" id="filter-search" placeholder="Search tasks..." class="flex-grow px-4 py-2 border-0 rounded-lg min-w-[150px]">
+                    <select id="filter-goal" class="px-4 py-2 border-0 rounded-lg"><option value="all">All Goals</option></select>
+                    <select id="filter-priority" class="px-4 py-2 border-0 rounded-lg"><option value="all">All Priorities</option><option>Low</option><option>Medium</option><option>High</option></select>
+                    <select id="filter-status" class="px-4 py-2 border-0 rounded-lg"><option value="all">All Statuses</option><option value="pending">Pending</option><option value="completed">Completed</option></select>
+                </div>
+                <div id="all-tasks-list" class="space-y-4"></div>
+            </div>
+            
+            <!-- Timetable View -->
+            <div id="timetable-view" class="view">
+                <h2 class="text-2xl font-bold mb-6">Weekly Timetable</h2>
+                <div class="glass-card p-6 rounded-2xl shadow-lg">
+                    <div id="timetable-grid" class="grid grid-cols-7 gap-2 text-center text-xs sm:text-sm"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals (Goal, Sub-task) -->
+    <div id="goal-modal" class="modal fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center hidden"><div class="glass-card p-8 rounded-2xl shadow-2xl w-full max-w-md mx-4"><h2 id="goal-modal-title" class="text-2xl font-bold mb-6"></h2><form id="goal-form"><input type="hidden" id="goal-id"><div class="mb-4"><label for="goal-title" class="block text-sm font-medium mb-1">Goal Title</label><input type="text" id="goal-title" class="w-full px-4 py-2 border-0 rounded-lg" required></div><div class="flex justify-end space-x-4 mt-6"><button type="button" class="cancel-btn px-6 py-2 rounded-lg border border-[var(--glass-border)]">Cancel</button><button type="submit" class="px-6 py-2 bg-[var(--primary-color)] text-white rounded-lg">Save</button></div></form></div></div>
+    <div id="subtask-modal" class="modal fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center hidden"><div class="glass-card p-8 rounded-2xl shadow-2xl w-full max-w-md mx-4"><h2 id="subtask-modal-title" class="text-2xl font-bold mb-6"></h2><form id="subtask-form"><input type="hidden" id="subtask-id"><div class="mb-4"><label for="subtask-title" class="block text-sm font-medium mb-1">Task Title</label><input type="text" id="subtask-title" class="w-full px-4 py-2 border-0 rounded-lg" required></div><div class="grid grid-cols-2 gap-4 mb-6"><div><label for="subtask-priority" class="block text-sm font-medium mb-1">Priority</label><select id="subtask-priority" class="w-full px-4 py-2 border-0 rounded-lg"><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></div><div><label for="subtask-date" class="block text-sm font-medium mb-1">Date</label><input type="date" id="subtask-date" class="w-full px-4 py-2 border-0 rounded-lg"></div></div><div class="flex justify-end space-x-4"><button type="button" class="cancel-btn px-6 py-2 rounded-lg border border-[var(--glass-border)]">Cancel</button><button type="submit" class="px-6 py-2 bg-[var(--primary-color)] text-white rounded-lg">Save</button></div></form></div></div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM ELEMENTS ---
+        const body = document.body;
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const views = document.querySelectorAll('.view');
+        const goalsList = document.getElementById('goals-list');
+        const subtaskList = document.getElementById('subtask-list');
+        const subtaskViewTitle = document.getElementById('subtask-view-title');
+        const subtaskViewCounts = document.getElementById('subtask-view-counts');
+        const allTasksList = document.getElementById('all-tasks-list');
+        const timetableGrid = document.getElementById('timetable-grid');
+        const goalModal = document.getElementById('goal-modal');
+        const subtaskModal = document.getElementById('subtask-modal');
+        
+        // --- FILTERS ---
+        const filterSearch = document.getElementById('filter-search');
+        const filterGoal = document.getElementById('filter-goal');
+        const filterPriority = document.getElementById('filter-priority');
+        const filterStatus = document.getElementById('filter-status');
+        
+        // --- STATE MANAGEMENT ---
+        let data = JSON.parse(localStorage.getItem('studyFlowData')) || { goals: [] };
+        let currentGoalId = null;
+        let editingGoalId = null;
+        let editingSubtaskId = null;
+
+        // --- CORE FUNCTIONS ---
+        const saveData = () => localStorage.setItem('studyFlowData', JSON.stringify(data));
+        
+        const applyTheme = (theme) => {
+            body.className = theme + '-mode';
+            const sunIcon = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>`;
+            const moonIcon = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>`;
+            document.getElementById('theme-icon').innerHTML = theme === 'dark' ? sunIcon : moonIcon;
+            localStorage.setItem('theme', theme);
+        };
+        themeToggleBtn.addEventListener('click', () => applyTheme(body.classList.contains('dark-mode') ? 'light' : 'dark'));
+
+        // --- VIEW NAVIGATION ---
+        const switchView = (viewId) => {
+            views.forEach(v => v.classList.remove('active', 'fade-in'));
+            document.getElementById(viewId).classList.add('active', 'fade-in');
+            navBtns.forEach(btn => {
+                btn.classList.toggle('bg-[var(--primary-color)]', btn.dataset.view === viewId);
+                btn.classList.toggle('text-white', btn.dataset.view === viewId);
+            });
+            
+            if (viewId === 'timetable-view') renderTimetable();
+            if (viewId === 'goals-view') renderGoals();
+            if (viewId === 'all-tasks-view') renderAllTasks();
+        };
+        navBtns.forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+
+        // --- MODAL MANAGEMENT ---
+        const showModal = (modal, title, dataObj = null) => {
+            modal.querySelector('h2').textContent = title;
+            modal.querySelector('form').reset();
+            editingGoalId = editingSubtaskId = null;
+            if (dataObj) {
+                if (modal.id === 'goal-modal') {
+                    editingGoalId = dataObj.id;
+                    document.getElementById('goal-title').value = dataObj.title;
+                } else {
+                    editingSubtaskId = dataObj.id;
+                    document.getElementById('subtask-title').value = dataObj.title;
+                    document.getElementById('subtask-priority').value = dataObj.priority;
+                    document.getElementById('subtask-date').value = dataObj.date || '';
+                }
+            }
+            modal.classList.remove('hidden');
+        };
+        const hideModals = () => [goalModal, subtaskModal].forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('.cancel-btn').forEach(btn => btn.addEventListener('click', hideModals));
+
+        // --- RENDER FUNCTIONS ---
+        const renderGoals = () => {
+             goalsList.innerHTML = '';
+            if (data.goals.length === 0) {
+                goalsList.innerHTML = `<p class="md:col-span-2 lg:col-span-3 text-center opacity-60 mt-8">No goals yet. Click 'New Goal' to start planning!</p>`;
+                renderOverallStats();
+                return;
+            }
+            data.goals.forEach(goal => {
+                const completed = goal.subtasks.filter(t => t.completed).length;
+                const total = goal.subtasks.length;
+                const perc = total > 0 ? Math.round((completed / total) * 100) : 0;
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6 rounded-2xl flex flex-col justify-between cursor-pointer';
+                card.dataset.id = goal.id;
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-xl font-bold mb-2">${goal.title}</h3>
+                            <div class="relative w-12 h-12">
+                                <svg class="w-full h-full" viewBox="0 0 36 36"><circle class="text-gray-300/20" stroke-width="3" stroke="currentColor" fill="none" cx="18" cy="18" r="15.9155" /><circle class="text-[var(--accent-color)]" stroke-width="3" stroke-dasharray="${perc}, 100" stroke-linecap="round" stroke="currentColor" fill="none" cx="18" cy="18" r="15.9155" transform="rotate(-90 18 18)"/></svg>
+                                <div class="absolute inset-0 flex items-center justify-center text-xs font-semibold">${perc}%</div>
+                            </div>
+                        </div>
+                        <p class="text-sm opacity-70">${completed} of ${total} tasks completed</p>
+                    </div>
+                    <div class="flex justify-end space-x-2 mt-4">
+                         <button class="edit-goal-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-id="${goal.id}"><svg class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg></button>
+                         <button class="delete-goal-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-id="${goal.id}"><svg class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                    </div>`;
+                goalsList.appendChild(card);
+            });
+            renderOverallStats();
+        };
+
+        const renderSubtasks = () => {
+            const goal = data.goals.find(g => g.id === currentGoalId);
+            if (!goal) { switchView('goals-view'); return; }
+
+            subtaskViewTitle.textContent = goal.title;
+            const completedCount = goal.subtasks.filter(t => t.completed).length;
+            subtaskViewCounts.textContent = `${completedCount} of ${goal.subtasks.length} tasks completed.`;
+
+            subtaskList.innerHTML = '';
+             if (goal.subtasks.length === 0) {
+                subtaskList.innerHTML = `<p class="text-center text-sm opacity-60 mt-4">No tasks in this goal yet. Add one!</p>`;
+                return;
+            }
+            goal.subtasks.forEach(task => {
+                const priorityColor = {'Low': 'bg-green-500', 'Medium': 'bg-yellow-500', 'High': 'bg-red-500'};
+                const card = document.createElement('div');
+                card.className = 'glass-card p-4 rounded-xl flex items-center justify-between';
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <div class="w-2.5 h-10 rounded-full ${priorityColor[task.priority]}"></div>
+                        <div>
+                            <h3 class="font-semibold ${task.completed ? 'line-through opacity-50' : ''}">${task.title}</h3>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                         <button class="status-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-id="${task.id}">${task.completed ? `<svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>` : `<svg class="w-6 h-6 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`}</button>
+                         <button class="edit-subtask-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-id="${task.id}"><svg class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg></button>
+                         <button class="delete-subtask-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-id="${task.id}"><svg class="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                    </div>`;
+                subtaskList.appendChild(card);
+            });
+        };
+
+        const renderTimetable = () => {
+            timetableGrid.innerHTML = '';
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            days.forEach(day => timetableGrid.innerHTML += `<div class="font-bold p-2">${day}</div>`);
+            
+            const allTasks = data.goals.flatMap(g => g.subtasks.map(t => ({...t, goalTitle: g.title})));
+            const tasksByDay = {};
+            allTasks.forEach(task => {
+                if (task.date) {
+                    const day = new Date(task.date + 'T00:00:00').getDay();
+                    if (!tasksByDay[day]) tasksByDay[day] = [];
+                    tasksByDay[day].push(task);
+                }
+            });
+
+            for (let i = 0; i < 7; i++) {
+                let dayTasksHTML = (tasksByDay[i] || []).map(task => `<div class="text-xs p-1 rounded-md mt-1 ${task.completed ? 'bg-green-500/30 line-through' : 'bg-purple-500/30'}">${task.title}</div>`).join('');
+                timetableGrid.innerHTML += `<div class="glass-card rounded-lg p-2 min-h-[80px]">${dayTasksHTML}</div>`;
+            }
+        };
+
+        const renderOverallStats = () => {
+            let total = 0, completed = 0;
+            data.goals.forEach(g => { total += g.subtasks.length; completed += g.subtasks.filter(t => t.completed).length; });
+            document.getElementById('total-tasks-stat').textContent = total;
+            document.getElementById('pending-tasks-stat').textContent = total - completed;
+            document.getElementById('completed-tasks-stat').textContent = completed;
+        };
+
+        const renderAllTasks = () => {
+            filterGoal.innerHTML = '<option value="all">All Goals</option>';
+            data.goals.forEach(g => filterGoal.innerHTML += `<option value="${g.id}">${g.title}</option>`);
+
+            let allTasks = data.goals.flatMap(g => g.subtasks.map(t => ({...t, goalId: g.id, goalTitle: g.title})));
+
+            const searchTerm = filterSearch.value.toLowerCase();
+            const goalFilter = filterGoal.value;
+            const priorityFilter = filterPriority.value;
+            const statusFilter = filterStatus.value;
+
+            if (searchTerm) allTasks = allTasks.filter(t => t.title.toLowerCase().includes(searchTerm));
+            if (goalFilter !== 'all') allTasks = allTasks.filter(t => t.goalId === goalFilter);
+            if (priorityFilter !== 'all') allTasks = allTasks.filter(t => t.priority === priorityFilter);
+            if (statusFilter !== 'all') {
+                const isCompleted = statusFilter === 'completed';
+                allTasks = allTasks.filter(t => t.completed === isCompleted);
+            }
+
+            allTasksList.innerHTML = '';
+            if (allTasks.length === 0) {
+                allTasksList.innerHTML = `<p class="text-center opacity-60 mt-8">No tasks match your filters.</p>`;
+                return;
+            }
+            allTasks.forEach(task => {
+                const priorityColor = {'Low': 'bg-green-500', 'Medium': 'bg-yellow-500', 'High': 'bg-red-500'};
+                const card = document.createElement('div');
+                card.className = 'glass-card p-4 rounded-xl flex items-center justify-between';
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <div class="w-2.5 h-10 rounded-full ${priorityColor[task.priority]}"></div>
+                        <div>
+                            <h3 class="font-semibold ${task.completed ? 'line-through opacity-50' : ''}">${task.title}</h3>
+                            <p class="text-xs opacity-60">${task.goalTitle}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button class="status-btn p-2 rounded-full hover:bg-[var(--glass-bg)]" data-task-id="${task.id}" data-goal-id="${task.goalId}">${task.completed ? `<svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>` : `<svg class="w-6 h-6 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`}</button>
+                    </div>`;
+                allTasksList.appendChild(card);
+            });
+        };
+        
+        // --- EVENT HANDLERS ---
+        document.getElementById('add-goal-btn').addEventListener('click', () => showModal(goalModal, 'Create New Goal'));
+        document.getElementById('add-subtask-btn').addEventListener('click', () => showModal(subtaskModal, 'Add New Task'));
+        document.getElementById('back-to-goals-btn').addEventListener('click', () => switchView('goals-view'));
+        
+        document.getElementById('goal-form').addEventListener('submit', e => { 
+            e.preventDefault();
+            const title = document.getElementById('goal-title').value;
+            if (editingGoalId) {
+                data.goals.find(g => g.id === editingGoalId).title = title;
+            } else {
+                data.goals.unshift({ id: Date.now().toString(), title: title, subtasks: [] });
+            }
+            saveData(); renderGoals(); renderAllTasks(); hideModals(); 
+        });
+
+        document.getElementById('subtask-form').addEventListener('submit', e => { 
+            e.preventDefault();
+            const goal = data.goals.find(g => g.id === currentGoalId);
+            const subtaskData = {
+                id: editingSubtaskId || Date.now().toString(),
+                title: document.getElementById('subtask-title').value,
+                priority: document.getElementById('subtask-priority').value,
+                date: document.getElementById('subtask-date').value,
+                completed: false
+            };
+            if (editingSubtaskId) {
+                const subtaskIndex = goal.subtasks.findIndex(st => st.id === editingSubtaskId);
+                subtaskData.completed = goal.subtasks[subtaskIndex].completed;
+                goal.subtasks[subtaskIndex] = subtaskData;
+            } else {
+                goal.subtasks.unshift(subtaskData);
+            }
+            saveData(); 
+            if (document.getElementById('subtask-view').classList.contains('active')) { 
+                renderSubtasks(); 
+            } else { 
+                renderAllTasks(); 
+            } 
+            hideModals(); 
+        });
+        
+        goalsList.addEventListener('click', e => {
+            const target = e.target.closest('button, .glass-card');
+            if (!target) return;
+            const goalId = target.dataset.id;
+            if (target.matches('.edit-goal-btn')) {
+                e.stopPropagation();
+                showModal(goalModal, 'Edit Goal', data.goals.find(g => g.id === goalId));
+            } else if (target.matches('.delete-goal-btn')) {
+                e.stopPropagation();
+                data.goals = data.goals.filter(g => g.id !== goalId);
+                saveData();
+                renderGoals();
+            } else if (target.matches('.glass-card')) {
+                currentGoalId = goalId;
+                switchView('subtask-view');
+                renderSubtasks();
+            }
+        });
+
+        subtaskList.addEventListener('click', e => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            const taskId = button.dataset.id;
+            const goal = data.goals.find(g => g.id === currentGoalId);
+            const task = goal.subtasks.find(t => t.id === taskId);
+            
+            if (button.matches('.status-btn')) {
+                task.completed = !task.completed;
+                if (task.completed && goal.subtasks.every(st => st.completed)) {
+                    confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+                }
+            } else if (button.matches('.edit-subtask-btn')) {
+                showModal(subtaskModal, 'Edit Task', task);
+            } else if (button.matches('.delete-subtask-btn')) {
+                goal.subtasks = goal.subtasks.filter(st => st.id !== taskId);
+            }
+            saveData();
+            renderSubtasks();
+        });
+
+        [filterSearch, filterGoal, filterPriority, filterStatus].forEach(el => el.addEventListener('input', renderAllTasks));
+
+        allTasksList.addEventListener('click', e => {
+            const button = e.target.closest('.status-btn');
+            if (!button) return;
+            
+            const taskId = button.dataset.taskId;
+            const goalId = button.dataset.goalId;
+            const goal = data.goals.find(g => g.id === goalId);
+            const task = goal.subtasks.find(t => t.id === taskId);
+
+            task.completed = !task.completed;
+
+            if (task.completed && goal.subtasks.every(st => st.completed)) {
+                 confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+            }
+            
+            saveData();
+            renderAllTasks();
+            renderOverallStats();
+        });
+
+        // --- INITIALIZATION ---
+        applyTheme(localStorage.getItem('theme') || 'dark');
+        switchView('goals-view');
+    });
+    </script>
+</body>
+</html>
+
